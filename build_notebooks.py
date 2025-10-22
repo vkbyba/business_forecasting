@@ -28,13 +28,12 @@ def _write_notebook(path: Path, cells: Sequence[nbf.NotebookNode]) -> None:
 
 
 def build_market() -> None:
-    path = ROOT / "Prophet market.ipynb"
+    path = ROOT / "Model market.ipynb"
 
     intro = nbf.v4.new_markdown_cell(
-        "## Market forecast (three-phase linear model)\n\n"
-        "This notebook mirrors the main stages of `3p_linear_model`: a Holt-Winters "
-        "baseline, engineered seasonal and lag features, and a final XGBoost model "
-        "per product group."
+        "## Прогноз ринку (three-phase linear)\n\n"
+        "Зошит повторює ключові кроки `3p_linear_model`: базовий Holt-Winters, "
+        "сезонні та лагові ознаки, фінальна модель XGBoost для кожної товарної групи."
     )
 
     imports = nbf.v4.new_code_cell(
@@ -56,7 +55,7 @@ def build_market() -> None:
         "forecast_horizon = int(future_counts.max()) if not future_counts.empty else 12\n"
         "if forecast_horizon <= 0:\n"
         "    forecast_horizon = 12\n\n"
-        "print(f'Forecast horizon: {forecast_horizon} periods')"
+        "print(f'Горизонт прогнозу: {forecast_horizon} періодів')"
     )
 
     run_pipeline = nbf.v4.new_code_cell(
@@ -74,7 +73,7 @@ def build_market() -> None:
         "        min_history=24,\n"
         "        lags=(1, 2, 3, 6, 12, 18, 24),\n"
         "        rolling_windows=(3, 6, 12, 24),\n"
-        "        random_search_iterations=30,\n"
+        "        random_search_iterations=10,\n"
         "        n_splits=4,\n"
         "        random_state=46,\n"
         "    )\n\n"
@@ -97,7 +96,8 @@ def build_market() -> None:
     )
 
     merge_save = nbf.v4.new_code_cell(
-        "result_df = df.copy()\n\n"
+        "result_df = df.copy()\n"
+        "original_masks = {target: result_df[target].isna() for target in TARGET_COLUMNS}\n\n"
         "for target, preds in prediction_frames.items():\n"
         "    merge_cols = [*GROUP_COLS, 'month']\n"
         "    result_df = result_df.merge(\n"
@@ -108,7 +108,10 @@ def build_market() -> None:
         "    result_df[target] = result_df[target].astype(float)\n"
         "    result_df[target] = result_df[target].fillna(result_df[f'{target}_forecast'])\n\n"
         "output_columns = ['month', 'product_group_id', 'product_group_name', 'market_revenue', 'revenue_amazon']\n"
-        "final_output = result_df[output_columns].sort_values(['product_group_id', 'month']).reset_index(drop=True)\n"
+        "forecast_mask = np.zeros(len(result_df), dtype=bool)\n"
+        "for target, mask in original_masks.items():\n"
+        "    forecast_mask |= mask\n"
+        "final_output = result_df.loc[forecast_mask, output_columns].sort_values(['product_group_id', 'month']).reset_index(drop=True)\n"
         "final_output.to_csv(OUTPUT_PATH, index=False)\n\n"
         "final_output.tail()"
     )
@@ -119,11 +122,11 @@ def build_market() -> None:
 
 
 def build_money() -> None:
-    path = ROOT / "Prophet money.ipynb"
+    path = ROOT / "Model money.ipynb"
 
     intro = nbf.v4.new_markdown_cell(
-        "## Revenue forecast (three-phase linear model)\n\n"
-        "Forecast monthly revenue per category with the reusable pipeline."
+        "## Прогноз виручки (three-phase linear)\n\n"
+        "Щомісячний прогноз виручки по категоріях із повторним використанням пайплайну."
     )
 
     imports = nbf.v4.new_code_cell(
@@ -148,7 +151,7 @@ def build_money() -> None:
         "forecast_horizon = int(future_counts.max()) if not future_counts.empty else 12\n"
         "if forecast_horizon <= 0:\n"
         "    forecast_horizon = 12\n\n"
-        "print(f'Forecast horizon: {forecast_horizon} periods')"
+        "print(f'Горизонт прогнозу: {forecast_horizon} періодів')"
     )
 
     run_pipeline = nbf.v4.new_code_cell(
@@ -165,7 +168,7 @@ def build_money() -> None:
         "    lags=(1, 2, 3, 6, 12, 18, 24),\n"
         "    rolling_windows=(3, 6, 12, 24),\n"
         "    additional_regressors=REGRESSORS,\n"
-        "    random_search_iterations=30,\n"
+        "    random_search_iterations=10,\n"
         "    n_splits=4,\n"
         "    random_state=46,\n"
         ")\n\n"
@@ -186,11 +189,14 @@ def build_money() -> None:
     merge_save = nbf.v4.new_code_cell(
         "merge_cols = [*GROUP_COLS, 'date']\n"
         "result_df = df.copy()\n"
+        "result_df['is_forecast_period'] = result_df[TARGET_COLUMN].isna()\n"
         "result_df = result_df.merge(preds[merge_cols + ['revenue_forecast']], on=merge_cols, how='left')\n"
         "result_df['revenue'] = result_df['revenue'].astype(float)\n"
         "result_df['revenue'] = result_df['revenue'].fillna(result_df['revenue_forecast'])\n\n"
         "output_columns = ['date', 'category_id', 'category_title', 'revenue']\n"
-        "final_output = result_df[output_columns].sort_values(['category_id', 'date']).reset_index(drop=True)\n"
+        "final_output = result_df.loc[result_df['is_forecast_period'], output_columns]\n"
+        "final_output = final_output.groupby(['date', 'category_id', 'category_title'], as_index=False)['revenue'].sum()\n"
+        "final_output = final_output.sort_values(['category_id', 'date']).reset_index(drop=True)\n"
         "final_output.to_csv(OUTPUT_PATH, index=False)\n\n"
         "final_output.tail()"
     )
@@ -201,11 +207,11 @@ def build_money() -> None:
 
 
 def build_pcs() -> None:
-    path = ROOT / "Prophet pcs.ipynb"
+    path = ROOT / "Model pcs.ipynb"
 
     intro = nbf.v4.new_markdown_cell(
-        "## PCS forecast (three-phase linear model)\n\n"
-        "Forecast weekly quantities per SKU with additional regressors."
+        "## Прогноз PCS (three-phase linear)\n\n"
+        "Прогноз щотижневих продажів по SKU з додатковими регресорами."
     )
 
     imports = nbf.v4.new_code_cell(
@@ -235,9 +241,16 @@ def build_pcs() -> None:
         "numeric_cols = ['qty_total', 'orders_qty', 'total_abc_numeric', 'war', 'covid', 'sin_quarter', 'cos_quarter']\n"
         "for col in numeric_cols:\n"
         "    df[col] = pd.to_numeric(df[col], errors='coerce')\n"
+        "\n"
+        "# Mark placeholder rows (future horizon) where target should be forecasted\n"
+        "placeholder_mask = df['last_goods_sell_status'].isna() & df['oos__by_goods'].isna()\n"
+        "df.loc[placeholder_mask, TARGET_COLUMN] = np.nan\n"
+        "\n"
         "df = df.sort_values(GROUP_COLS + ['period']).reset_index(drop=True)\n\n"
-        "forecast_horizon = 4\n"
-        "print(f'Forecast horizon: {forecast_horizon} periods (weeks)')"
+        "forecast_horizon = int(df.loc[placeholder_mask, 'period'].nunique()) if placeholder_mask.any() else 0\n"
+        "if forecast_horizon <= 0:\n"
+        "    forecast_horizon = 4\n"
+        "print(f'Горизонт прогнозу: {forecast_horizon} тижнів')"
     )
 
     run_pipeline = nbf.v4.new_code_cell(
@@ -254,8 +267,9 @@ def build_pcs() -> None:
         "    lags=(1, 2, 3, 4, 8, 12, 16),\n"
         "    rolling_windows=(3, 4, 8, 12),\n"
         "    additional_regressors=REGRESSORS,\n"
-        "    random_search_iterations=25,\n"
-        "    n_splits=4,\n"
+        "    random_search_iterations=0,\n"
+        "    n_splits=3,\n"
+        "    n_estimators=300,\n"
         "    random_state=46,\n"
         ")\n\n"
         "preds, summaries = run_three_phase_forecast(df[input_cols].copy(), config)\n"
@@ -274,21 +288,13 @@ def build_pcs() -> None:
 
     merge_save = nbf.v4.new_code_cell(
         "merge_cols = [*GROUP_COLS, 'period']\n"
-        "result_df = df[['period', *GROUP_COLS, 'category_id', TARGET_COLUMN]].copy()\n"
-        "forecast_df = preds[merge_cols + ['qty_total_forecast']]\n"
+        "forecast_df = preds[merge_cols + ['qty_total_forecast']].copy()\n"
         "static_map = df[['sku_id', 'category_id']].drop_duplicates()\n"
         "forecast_df = forecast_df.merge(static_map, on='sku_id', how='left')\n"
-        "result_df = result_df.rename(columns={TARGET_COLUMN: 'qty_total_actual'})\n"
-        "result_df['source'] = 'history'\n"
         "forecast_df = forecast_df.rename(columns={'qty_total_forecast': 'qty_total'})\n"
-        "forecast_df['source'] = 'forecast'\n"
-        "combined = pd.concat([\n"
-        "    result_df.rename(columns={'qty_total_actual': 'qty_total'}),\n"
-        "    forecast_df[['period', *GROUP_COLS, 'category_id', 'qty_total', 'source']]\n"
-        "], ignore_index=True, sort=False)\n"
-        "combined = combined.sort_values(GROUP_COLS + ['period']).reset_index(drop=True)\n"
-        "combined.to_csv(OUTPUT_PATH, index=False)\n\n"
-        "combined.tail()"
+        "forecast_df = forecast_df.sort_values(GROUP_COLS + ['period']).reset_index(drop=True)\n"
+        "forecast_df.to_csv(OUTPUT_PATH, index=False)\n\n"
+        "forecast_df.tail()"
     )
 
     report = nbf.v4.new_code_cell("summary_report")
@@ -304,4 +310,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

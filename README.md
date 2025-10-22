@@ -1,40 +1,58 @@
-# Business Forecasting
+# Проєкт Business Forecasting
 
-Repository contains datasets and reusable three‑phase forecasting pipeline that powers three notebook scenarios (`Prophet market`, `Prophet money`, `Prophet pcs`).
+Проста інструкція, як отримати прогнози для трьох розрізів (ринок, виручка, PCS). Матеріал орієнтований на студентів без глибокого технічного досвіду.
 
-## Requirements
+## 1. Встановлення потрібних програм
 
-- Python 3.10 or newer
-- Recommended packages:
-  - `pandas`, `numpy`, `statsmodels`, `scikit-learn`, `xgboost`
-  - `nbformat`, `jupyter`
+1. Переконайтесь, що на комп’ютері встановлено **Python 3.10** або новіший. Перевірити версію можна командою:
+   ```bash
+   python --version
+   ```
+2. Оновіть менеджер пакетів `pip` і встановіть необхідні бібліотеки (потрібно виконати обидві команди в терміналі/PowerShell):
+   ```bash
+   python -m pip install --upgrade pip
+   python -m pip install pandas numpy statsmodels scikit-learn xgboost nbformat jupyter
+   ```
 
-Install everything at once (upgrade `pip` first to avoid wheel issues):
+Ці пакети забезпечують роботу нашого пайплайну та ноутбуків.
 
-```bash
-python -m pip install --upgrade pip
-python -m pip install pandas numpy statsmodels scikit-learn xgboost nbformat jupyter
-```
+## 2. Структура папки
 
-## Quick Start
+У корені репозиторію мають лежати:
+- вихідні файли з даними: `forecast_of_market_dataset.csv`, `forecast_revenue_dataset.csv`, `dataset_pcs.csv`;
+- ноутбуки: `Model market.ipynb`, `Model money.ipynb`, `Model pcs.ipynb`;
+- модуль з пайплайном `three_phase_linear.py` та генератор ноутбуків `build_notebooks.py`.
 
-1. Launch Jupyter from the project root:
+## 3. Запуск Jupyter Notebook
+
+1. Відкрийте термінал (або PowerShell) у папці проєкту `business_forecasting`.
+2. Запустіть середовище Jupyter командою:
    ```bash
    jupyter notebook
    ```
-2. Open один із ноутбуків:
-   - `Prophet market.ipynb` (прогноз ринку на рівні `product_group_id`)
-   - `Prophet money.ipynb` (прогноз виручки по `category_id`)
-   - `Prophet pcs.ipynb` (прогноз щотижневих продажів по `sku_id`)
-3. Запусти всі комірки згори донизу. Після завершення у корені з’явиться відповідний CSV:
-   - `market_three_phase_forecast.csv`
-   - `money_three_phase_forecast.csv`
-   - `pcs_three_phase_forecast.csv`
+3. У браузері відкриється список файлів. Запускайте потрібний ноутбук:
+   - `Model market.ipynb` — прогноз ринку за `product_group_id` (місячні дані).
+   - `Model money.ipynb` — прогноз виручки за `category_id` (місячні дані).
+   - `Model pcs.ipynb` — прогноз продажів PCS за `sku_id` (тижневі дані).
+4. У кожному ноутбуку виконуйте комірки послідовно згори донизу (комбінація клавіш **Shift+Enter**).
 
-## Оновлення ноутбуків після змін
+Після завершення обчислень у корені репозиторію з’являться CSV-файли з прогнозами:
+- `market_three_phase_forecast.csv`
+- `money_three_phase_forecast.csv`
+- `pcs_three_phase_forecast.csv`
 
-Якщо вносиш зміни у `three_phase_linear.py` або хочеш відтворити ноутбуки з нуля, виконай:
+У цих таблицях будуть **лише майбутні періоди**, для яких модель сформувала прогноз.
+
+## 4. Оновлення ноутбуків після змін
+
+Якщо ви редагували `three_phase_linear.py` або хочете відновити ноутбуки зі стандартним наповненням, запустіть:
 ```bash
 python build_notebooks.py
 ```
-Після цього знову відкрий потрібний ноутбук і повтори запуск, щоб отримати оновлений прогноз.
+Ця команда перегенерує файли `Model *.ipynb`. Далі повторно відкрийте потрібний ноутбук і виконайте всі комірки, щоб отримати актуальний прогноз.
+
+## 5. Корисні поради
+
+- Перед повторним запуском переконайтесь, що CSV-файли з прогнозом закриті в Excel або інших програмах. Інакше запис може завершитись помилкою `Permission denied`.
+- Якщо потрібно працювати лише з одним розрізом, достатньо залишити відповідний ноутбук, файл з даними та модуль `three_phase_linear.py`.
+- У разі питань звертайтесь до викладача або наставника — всі скрипти написані так, аби їх можна було запускати «в один клік» без додаткового налаштування. 
