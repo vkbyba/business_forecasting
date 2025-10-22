@@ -14,7 +14,7 @@ locally without access to the original infrastructure (ClickHouse, GCS, internal
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Callable, Dict, Iterable, List, Optional, Sequence, Tuple
 
 import logging
 import warnings
@@ -61,6 +61,8 @@ class ForecastConfig:
     fill_future_regressors: bool = True
     future_fill_method: str = "ffill"
     allow_mean_fallback: bool = True
+    target_transform: Optional[Callable[[np.ndarray], np.ndarray]] = None
+    target_inverse_transform: Optional[Callable[[np.ndarray], np.ndarray]] = None
 
     def __post_init__(self) -> None:
         if not self.group_cols:
@@ -315,6 +317,17 @@ def _train_group_model(
     X_train = train_df[feature_cols]
     y_train = train_df[target_col]
 
+    transform = config.target_transform or (lambda arr: arr)
+    inverse_transform = config.target_inverse_transform or (lambda arr: arr)
+
+    def _transform_target(values: pd.Series) -> np.ndarray:
+        transformed = transform(values.to_numpy())
+        return np.asarray(transformed, dtype=float)
+
+    def _inverse(values: np.ndarray) -> np.ndarray:
+        restored = inverse_transform(values)
+        return np.asarray(restored, dtype=float)
+
     random_state = np.random.RandomState(config.random_state)
 
     n_splits = _time_series_split_length(len(X_train), config.n_splits)
@@ -352,11 +365,11 @@ def _train_group_model(
                 model = xgb.XGBRegressor(**base_params, **params, early_stopping_rounds=30)
                 model.fit(
                     X_tr,
-                    y_tr,
-                    eval_set=[(X_val, y_val)],
+                    _transform_target(y_tr),
+                    eval_set=[(X_val, _transform_target(y_val))],
                     verbose=False,
                 )
-                pred_val = model.predict(X_val)
+                pred_val = _inverse(model.predict(X_val))
                 scores.append(mean_absolute_error(y_val, pred_val))
                 iterations.append(getattr(model, "best_iteration", base_params["n_estimators"]))
 
@@ -375,14 +388,16 @@ def _train_group_model(
     final_params.pop("random_state", None)
 
     final_model = xgb.XGBRegressor(**final_params, random_state=config.random_state)
-    final_model.fit(X_train, y_train, verbose=False)
+    final_model.fit(X_train, _transform_target(y_train), verbose=False)
 
     future_df = df[~train_mask].copy()
     if future_df.empty:
         predictions = pd.DataFrame(columns=[*config.group_cols, time_col, target_col, "prediction", baseline_col])
         return GroupForecast(group_key, predictions, best_params, best_score, len(train_df))
 
-    future_df["prediction"] = final_model.predict(future_df[feature_cols])
+    preds_future = _inverse(final_model.predict(future_df[feature_cols]))
+    preds_future = np.clip(preds_future, 0.0, None)
+    future_df["prediction"] = preds_future
 
     predictions = future_df[[*config.group_cols, time_col, baseline_col]].copy()
     predictions[target_col] = np.nan
