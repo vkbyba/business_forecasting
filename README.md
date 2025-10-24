@@ -10,12 +10,12 @@
    ```bash
    python -m pip install --upgrade pip
    py -3.12 -m pip install pandas
-py -3.12 -m pip install numpy
-py -3.12 -m pip install statsmodels
-py -3.12 -m pip install scikit-learn
-py -3.12 -m pip install xgboost
-py -3.12 -m pip install nbformat
-py -3.12 -m pip install jupyter
+   py -3.12 -m pip install numpy
+   py -3.12 -m pip install statsmodels
+   py -3.12 -m pip install scikit-learn
+   py -3.12 -m pip install xgboost
+   py -3.12 -m pip install nbformat
+   py -3.12 -m pip install jupyter
    ```
 
 Ці пакети забезпечують роботу нашого пайплайну та ноутбуків.
